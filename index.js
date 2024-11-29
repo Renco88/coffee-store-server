@@ -1,21 +1,18 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express');
-require('dotenv').config()
+require('dotenv').config();
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
 
-// middleware 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// MongoDB connection URI
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wibzr.mongodb.net/?retryWrites=true&w=majority`;
 
-
-
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wibzr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// Create a MongoClient with a MongoClientOptions object
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -26,43 +23,127 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client to the server
     await client.connect();
+    console.log("Connected to MongoDB!");
+
+    // Database and collection
     const coffeeCollection = client.db('coffeeDB').collection('coffee');
 
-    app.get('/coffee', async(req,res) => {
-      const cursor = coffeeCollection.find();
-      const result =await cursor.toArray();
-      res.send(result);
-    })
+    // GET: Retrieve all coffee entries
+    app.get('/coffee', async (req, res) => {
+      try {
+        const cursor = coffeeCollection.find();
+        const result = await cursor.toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error retrieving coffee:", error);
+        res.status(500).send({ message: "Error retrieving coffee data" });
+      }
+    });
 
+    // GET: Retrieve a single coffee by ID
+    app.get('/coffee/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: "Invalid Coffee ID" });
+        }
+        const query = { _id: new ObjectId(id) };
+        const result = await coffeeCollection.findOne(query);
+        if (!result) {
+          return res.status(404).send({ message: "Coffee not found" });
+        }
+        res.send(result);
+      } catch (error) {
+        console.error("Error retrieving coffee by ID:", error);
+        res.status(500).send({ message: "Error retrieving coffee data" });
+      }
+    });
 
+    // PUT: Update a coffee entry by ID
+    app.put('/coffee/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: "Invalid Coffee ID" });
+        }
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const updateCoffee = req.body;
 
+        // Update coffee fields
+        const coffee = {
+          $set: {
+            name:updateCoffee.name,
+            chef:updateCoffee.chef,
+            taste:updateCoffee.taste,
+            photo:updateCoffee.photo,
+            supplier:updateCoffee.supplier,
+            categorya:updateCoffee.category,
+            details:updateCoffee.details,
+          }
+        };
+
+        const result = await coffeeCollection.updateOne(filter, coffee, options);
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating coffee:", error);
+        res.status(500).send({ message: "Error updating coffee data" });
+      }
+    });
+
+    // POST: Add a new coffee entry
     app.post('/coffee', async (req, res) => {
-      const newCoffee = req.body;
-      console.log('Adding new coffee', newCoffee);
-      const result =await coffeeCollection.insertOne(newCoffee);
-      res.send(result);
+      try {
+        const newCoffee = req.body;
+        console.log('Adding new coffee:', newCoffee);
+        const result = await coffeeCollection.insertOne(newCoffee);
+        res.status(201).send(result);
+      } catch (error) {
+        console.error("Error adding coffee:", error);
+        res.status(500).send({ message: "Error adding coffee data" });
+      }
+    });
 
-  });
+    // DELETE: Delete a coffee entry by ID
+    app.delete('/coffee/:id', async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: "Invalid Coffee ID" });
+        }
+        const query = { _id: new ObjectId(id) };
+        const result = await coffeeCollection.deleteOne(query);
 
-    // Send a ping to confirm a successful connection
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: "Coffee not found" });
+        }
 
+        res.send({ message: "Coffee deleted successfully", result });
+      } catch (error) {
+        console.error("Error deleting coffee:", error);
+        res.status(500).send({ message: "Error deleting coffee data" });
+      }
+    });
+
+    // Ping to confirm connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    console.log("Pinged MongoDB deployment. Connection successful!");
+
+  } catch (error) {
+    console.error("Error connecting to MongoDB:", error);
   }
 }
+
 run().catch(console.dir);
 
-
-
+// Default route
 app.get('/', (req, res) => {
-  res.send('coffee making server is running ')
-})
+  res.send('Coffee making server is running!');
+});
 
+// Server listening
 app.listen(port, () => {
-  console.log(`coffee server is running on port : ${port}`);
-})
+  console.log(`Coffee server is running on port: ${port}`);
+});
