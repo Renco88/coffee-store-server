@@ -29,6 +29,7 @@ async function run() {
 
     // Database and collection
     const coffeeCollection = client.db('coffeeDB').collection('coffee');
+    const userCollection =client.db('coffeeDB').collection('user');
 
     // GET: Retrieve all coffee entries
     app.get('/coffee', async (req, res) => {
@@ -85,7 +86,7 @@ async function run() {
           }
         };
 
-        const result = await coffeeCollection.updateOne(filter, coffee, options);
+        const result = await coffeeCollection.updateOne(filter, coffee);
         res.send(result);
       } catch (error) {
         console.error("Error updating coffee:", error);
@@ -126,6 +127,47 @@ async function run() {
         res.status(500).send({ message: "Error deleting coffee data" });
       }
     });
+
+    // user post
+    app.get('/user', async (req, res) => {
+      try {
+          const cursor = userCollection.find();
+          const users = await cursor.toArray();
+          res.send(users);
+      } catch (error) {
+          console.error("Error fetching users:", error);
+          res.status(500).send({ message: "Error fetching users" });
+      }
+  });
+  
+
+
+
+    app.post('/user',async(req,res)=> {
+      const user =req.body;
+      console.log(user);
+      const result =await userCollection.insertOne(user);
+      res.send(result);
+    })
+
+    app.patch('/user/:id',async(req,res)=>{
+      const user =req.body;
+      const filter ={email:user.email}
+      const updateDoc={
+        $set:{
+          lastLoggedAt:user.lastLoggedAt
+        }
+      }
+      const result=await userCollection.updateOne(filter,updateDoc);
+      res.send(result);
+    })
+
+    app.delete('/user/:id', async (req,res)=>{
+      const id=req.params.id;
+      const query ={_id:new ObjectId(id)};
+      const result = await  userCollection.deleteOne(query);
+      res.send(result);
+    })
 
     // Ping to confirm connection
     await client.db("admin").command({ ping: 1 });
